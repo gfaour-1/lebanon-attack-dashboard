@@ -16,16 +16,33 @@ st.markdown("""
 <style>
 .block-container {
     max-width: 100%;
-    padding-top: 0.4rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-top: 2.2rem;
+    padding-left: 1.2rem;
+    padding-right: 1.2rem;
     padding-bottom: 0.5rem;
 }
-h1 {font-size: 1.55rem !important;}
-h2 {font-size: 1.15rem !important;}
+
+h1 {
+    font-size: 1.35rem !important;
+    line-height: 1.25 !important;
+    margin-bottom: 0.6rem !important;
+    white-space: normal !important;
+}
+
+h2 {font-size: 1.1rem !important;}
 h3 {font-size: 1rem !important;}
-[data-testid="stMetricValue"] {font-size: 1.35rem;}
-iframe {width: 100% !important;}
+
+[data-testid="stMetricValue"] {
+    font-size: 1.35rem;
+}
+
+iframe {
+    width: 100% !important;
+}
+
+[data-testid="stSidebar"] {
+    min-width: 250px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -52,11 +69,8 @@ def load_data():
 
 df = load_data()
 
-# =====================
-# Sidebar
-# =====================
-
 st.sidebar.title("Lebanon Events")
+
 page = st.sidebar.radio(
     "Page",
     ["Overview", "Map", "Statistics", "Timeline", "Events", "Methodology"]
@@ -69,12 +83,14 @@ st.sidebar.header("Filters")
 if not filtered["event_date"].dropna().empty:
     min_date = filtered["event_date"].min().date()
     max_date = filtered["event_date"].max().date()
+
     date_range = st.sidebar.date_input(
         "Date range",
         value=(min_date, max_date),
         min_value=min_date,
         max_value=max_date
     )
+
     if isinstance(date_range, tuple) and len(date_range) == 2:
         filtered = filtered[
             (filtered["event_date"].dt.date >= date_range[0]) &
@@ -135,6 +151,7 @@ def daily_table():
 
 def map_component(height=520, heat=False):
     map_df = filtered.dropna(subset=["latitude", "longitude"]).copy()
+
     map_df = map_df[
         (map_df["latitude"] >= 33.0) &
         (map_df["latitude"] <= 34.8) &
@@ -147,6 +164,7 @@ def map_component(height=520, heat=False):
         zoom_start=8,
         tiles="CartoDB positron"
     )
+
     m.fit_bounds([[33.0, 35.0], [34.8, 36.8]])
     Fullscreen(position="topright").add_to(m)
 
@@ -192,11 +210,7 @@ def table_component(height=430):
     cols = [c for c in cols if c in filtered.columns]
     st.dataframe(filtered[cols], use_container_width=True, height=height)
 
-# =====================
-# Pages
-# =====================
-
-st.title("Lebanon Attack Events Dashboard — May 2026")
+st.title("Lebanon Attack Events — May 2026")
 
 if page == "Overview":
     kpis()
@@ -205,18 +219,19 @@ if page == "Overview":
 
     with left:
         st.subheader("Map preview")
-        map_component(height=440, heat=False)
+        map_component(height=430, heat=False)
 
     with right:
         st.subheader("Daily casualties")
         daily = daily_table()
+
         fig = px.line(
             daily,
             x="day",
             y=["killed", "injured", "children"],
             markers=True
         )
-        fig.update_layout(height=310, margin=dict(l=10, r=10, t=25, b=10))
+        fig.update_layout(height=300, margin=dict(l=10, r=10, t=25, b=10))
         st.plotly_chart(fig, use_container_width=True)
 
         by_type = (
@@ -224,8 +239,9 @@ if page == "Overview":
             .agg(events=("event_id", "nunique"))
             .reset_index()
         )
+
         fig2 = px.pie(by_type, names="attack_type", values="events")
-        fig2.update_layout(height=250, margin=dict(l=10, r=10, t=20, b=10))
+        fig2.update_layout(height=230, margin=dict(l=10, r=10, t=20, b=10))
         st.plotly_chart(fig2, use_container_width=True)
 
 elif page == "Map":
@@ -236,7 +252,7 @@ elif page == "Map":
     top4.metric("Injured", total_injured)
 
     heat = st.toggle("Heatmap", value=False)
-    map_component(height=640, heat=heat)
+    map_component(height=620, heat=heat)
 
 elif page == "Statistics":
     kpis()
@@ -261,7 +277,7 @@ elif page == "Statistics":
             orientation="h",
             title="Top villages"
         )
-        fig.update_layout(height=420, margin=dict(l=10, r=10, t=40, b=10))
+        fig.update_layout(height=410, margin=dict(l=10, r=10, t=40, b=10))
         c1.plotly_chart(fig, use_container_width=True)
 
         by_district = (
@@ -277,7 +293,7 @@ elif page == "Statistics":
             y="events",
             title="Events by district"
         )
-        fig2.update_layout(height=420, margin=dict(l=10, r=10, t=40, b=10))
+        fig2.update_layout(height=410, margin=dict(l=10, r=10, t=40, b=10))
         c2.plotly_chart(fig2, use_container_width=True)
 
     with tab2:
@@ -299,7 +315,7 @@ elif page == "Statistics":
             y=["killed", "injured", "children"],
             title="Casualties by district"
         )
-        fig.update_layout(height=420)
+        fig.update_layout(height=410)
         c1.plotly_chart(fig, use_container_width=True)
 
         by_gov = (
@@ -318,7 +334,7 @@ elif page == "Statistics":
             y=["killed", "injured", "children"],
             title="Casualties by governorate"
         )
-        fig2.update_layout(height=420)
+        fig2.update_layout(height=410)
         c2.plotly_chart(fig2, use_container_width=True)
 
     with tab3:
@@ -335,7 +351,7 @@ elif page == "Statistics":
             values="events",
             title="Attack type distribution"
         )
-        fig.update_layout(height=440)
+        fig.update_layout(height=430)
         st.plotly_chart(fig, use_container_width=True)
 
 elif page == "Timeline":
@@ -346,7 +362,7 @@ elif page == "Timeline":
 
     with tab1:
         fig = px.bar(daily, x="day", y="events", title="Events per day")
-        fig.update_layout(height=500)
+        fig.update_layout(height=480)
         st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
@@ -357,11 +373,12 @@ elif page == "Timeline":
             markers=True,
             title="Casualties per day"
         )
-        fig.update_layout(height=500)
+        fig.update_layout(height=480)
         st.plotly_chart(fig, use_container_width=True)
 
 elif page == "Events":
     search = st.text_input("Search in event summaries")
+
     if search:
         filtered = filtered[
             filtered["event_summary_focus"]
@@ -369,7 +386,7 @@ elif page == "Events":
             .str.contains(search, case=False, na=False)
         ]
 
-    table_component(height=610)
+    table_component(height=600)
 
     csv = filtered.to_csv(index=False, encoding="utf-8-sig")
     st.download_button(
