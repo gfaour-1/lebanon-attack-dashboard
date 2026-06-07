@@ -9,39 +9,58 @@ import os
 st.set_page_config(
     page_title="Lebanon Events Dashboard",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 st.markdown("""
 <style>
 .block-container {
     max-width: 100%;
-    padding-top: 2.2rem;
-    padding-left: 1.2rem;
-    padding-right: 1.2rem;
+    padding-top: 1.2rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
     padding-bottom: 0.5rem;
 }
 
 h1 {
     font-size: 1.35rem !important;
     line-height: 1.25 !important;
-    margin-bottom: 0.6rem !important;
-    white-space: normal !important;
 }
 
-h2 {font-size: 1.1rem !important;}
-h3 {font-size: 1rem !important;}
+h2 {
+    font-size: 1.1rem !important;
+}
+
+h3 {
+    font-size: 1rem !important;
+}
 
 [data-testid="stMetricValue"] {
-    font-size: 1.35rem;
+    font-size: 1.25rem;
 }
 
 iframe {
     width: 100% !important;
 }
 
-[data-testid="stSidebar"] {
-    min-width: 250px;
+@media (max-width: 768px) {
+    .block-container {
+        padding-left: 0.35rem;
+        padding-right: 0.35rem;
+        padding-top: 0.7rem;
+    }
+
+    h1 {
+        font-size: 1.15rem !important;
+    }
+
+    [data-testid="stMetricValue"] {
+        font-size: 1.05rem;
+    }
+
+    [data-testid="stMetricLabel"] {
+        font-size: 0.75rem;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -69,9 +88,18 @@ def load_data():
 
 df = load_data()
 
+# =====================
+# Sidebar
+# =====================
+
 st.sidebar.title("Lebanon Events")
 
-page = st.sidebar.radio(
+layout_mode = st.sidebar.radio(
+    "Layout",
+    ["Desktop", "Mobile"]
+)
+
+page = st.sidebar.selectbox(
     "Page",
     ["Overview", "Map", "Statistics", "Timeline", "Events", "Methodology"]
 )
@@ -124,12 +152,25 @@ affected_villages = filtered["village_location"].dropna().nunique()
 mapped_records = filtered.dropna(subset=["latitude", "longitude"]).shape[0]
 
 def kpis():
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Events", total_events)
-    c2.metric("Killed", total_killed)
-    c3.metric("Injured", total_injured)
-    c4.metric("Children", total_children)
-    c5.metric("Villages", affected_villages)
+    if layout_mode == "Mobile":
+        a, b = st.columns(2)
+        a.metric("Events", total_events)
+        b.metric("Killed", total_killed)
+
+        c, d = st.columns(2)
+        c.metric("Injured", total_injured)
+        d.metric("Children", total_children)
+
+        e, f = st.columns(2)
+        e.metric("Villages", affected_villages)
+        f.metric("Mapped", mapped_records)
+    else:
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Events", total_events)
+        c2.metric("Killed", total_killed)
+        c3.metric("Injured", total_injured)
+        c4.metric("Children", total_children)
+        c5.metric("Villages", affected_villages)
 
 def daily_table():
     if casualty_df.empty:
@@ -162,19 +203,21 @@ def map_component(height=520, heat=False):
     m = folium.Map(
         location=[33.85, 35.85],
         zoom_start=8,
-        tiles="CartoDB positron"
+        tiles="CartoDB positron",
+        control_scale=True
     )
 
     m.fit_bounds([[33.0, 35.0], [34.8, 36.8]])
     Fullscreen(position="topright").add_to(m)
 
     if heat and not map_df.empty:
-        HeatMap(map_df[["latitude", "longitude"]].values.tolist(), radius=20).add_to(m)
+        HeatMap(map_df[["latitude", "longitude"]].values.tolist(), radius=18).add_to(m)
 
     cluster = MarkerCluster().add_to(m)
 
     for _, row in map_df.iterrows():
         popup = f"""
+        <div style="width:300px;">
         <b>Village:</b> {row.get("village_location", "")}<br>
         <b>District:</b> {row.get("district", "")}<br>
         <b>Date:</b> {row.get("event_date", "")}<br>
@@ -184,6 +227,7 @@ def map_component(height=520, heat=False):
         <b>Children:</b> {row.get("location_children", "")}<br>
         <hr>
         {row.get("event_summary_focus", "")}
+        </div>
         """
 
         casualties = (
@@ -193,8 +237,8 @@ def map_component(height=520, heat=False):
 
         folium.CircleMarker(
             location=[row["latitude"], row["longitude"]],
-            radius=5 + min(casualties * 0.5, 12),
-            popup=folium.Popup(popup, max_width=420),
+            radius=5 + min(casualties * 0.45, 10),
+            popup=folium.Popup(popup, max_width=330),
             fill=True
         ).add_to(cluster)
 
@@ -207,31 +251,55 @@ def table_component(height=430):
         "casualty_allocation", "count_for_casualty_totals",
         "confidence_level", "event_summary_focus"
     ]
-    cols = [c for c in cols if c in filtered.columns]
-    st.dataframe(filtered[cols], use_container_width=True, height=height)
 
-st.title("Lebanon Attack Events — May 2026")
+    cols = [c for c in cols if c in filtered.columns]
+
+    table = filtered[cols].copy()
+
+    table = table.rename(columns={
+        "event_id": "Event ID",
+        "event_date": "Date",
+        "village_location": "Village",
+        "district": "District",
+        "governorate": "Governorate",
+        "attack_type": "Attack type",
+        "location_killed": "Killed",
+        "location_injured": "Injured",
+        "location_children": "Children",
+        "casualty_allocation": "Casualty allocation",
+        "count_for_casualty_totals": "Count in totals",
+        "confidence_level": "Confidence",
+        "event_summary_focus": "Summary"
+    })
+
+    st.dataframe(table, use_container_width=True, height=height)
+
+# =====================
+# Main
+# =====================
+
+if layout_mode == "Mobile":
+    st.title("Lebanon Events — May 2026")
+else:
+    st.title("Lebanon Attack Events — May 2026")
 
 if page == "Overview":
     kpis()
 
-    left, right = st.columns([1.15, 0.85], gap="small")
+    daily = daily_table()
 
-    with left:
-        st.subheader("Map preview")
-        map_component(height=430, heat=False)
+    if layout_mode == "Mobile":
+        st.subheader("Map")
+        map_component(height=360, heat=False)
 
-    with right:
         st.subheader("Daily casualties")
-        daily = daily_table()
-
         fig = px.line(
             daily,
             x="day",
             y=["killed", "injured", "children"],
             markers=True
         )
-        fig.update_layout(height=300, margin=dict(l=10, r=10, t=25, b=10))
+        fig.update_layout(height=300, margin=dict(l=5, r=5, t=20, b=5))
         st.plotly_chart(fig, use_container_width=True)
 
         by_type = (
@@ -240,19 +308,48 @@ if page == "Overview":
             .reset_index()
         )
 
+        st.subheader("Attack types")
         fig2 = px.pie(by_type, names="attack_type", values="events")
-        fig2.update_layout(height=230, margin=dict(l=10, r=10, t=20, b=10))
+        fig2.update_layout(height=300, margin=dict(l=5, r=5, t=20, b=5))
         st.plotly_chart(fig2, use_container_width=True)
 
-elif page == "Map":
-    top1, top2, top3, top4 = st.columns(4)
-    top1.metric("Events", total_events)
-    top2.metric("Mapped records", mapped_records)
-    top3.metric("Killed", total_killed)
-    top4.metric("Injured", total_injured)
+    else:
+        left, right = st.columns([1.15, 0.85], gap="small")
 
+        with left:
+            st.subheader("Map preview")
+            map_component(height=430, heat=False)
+
+        with right:
+            st.subheader("Daily casualties")
+
+            fig = px.line(
+                daily,
+                x="day",
+                y=["killed", "injured", "children"],
+                markers=True
+            )
+            fig.update_layout(height=300, margin=dict(l=10, r=10, t=25, b=10))
+            st.plotly_chart(fig, use_container_width=True)
+
+            by_type = (
+                unique_events.groupby("attack_type")
+                .agg(events=("event_id", "nunique"))
+                .reset_index()
+            )
+
+            fig2 = px.pie(by_type, names="attack_type", values="events")
+            fig2.update_layout(height=230, margin=dict(l=10, r=10, t=20, b=10))
+            st.plotly_chart(fig2, use_container_width=True)
+
+elif page == "Map":
+    kpis()
     heat = st.toggle("Heatmap", value=False)
-    map_component(height=620, heat=heat)
+
+    if layout_mode == "Mobile":
+        map_component(height=520, heat=heat)
+    else:
+        map_component(height=620, heat=heat)
 
 elif page == "Statistics":
     kpis()
@@ -260,8 +357,6 @@ elif page == "Statistics":
     tab1, tab2, tab3 = st.tabs(["Places", "Casualties", "Types"])
 
     with tab1:
-        c1, c2 = st.columns(2, gap="small")
-
         by_village = (
             casualty_df.groupby("village_location")
             .agg(events=("event_id", "nunique"))
@@ -277,8 +372,8 @@ elif page == "Statistics":
             orientation="h",
             title="Top villages"
         )
-        fig.update_layout(height=410, margin=dict(l=10, r=10, t=40, b=10))
-        c1.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(height=360 if layout_mode == "Mobile" else 420)
+        st.plotly_chart(fig, use_container_width=True)
 
         by_district = (
             casualty_df.groupby("district")
@@ -293,12 +388,10 @@ elif page == "Statistics":
             y="events",
             title="Events by district"
         )
-        fig2.update_layout(height=410, margin=dict(l=10, r=10, t=40, b=10))
-        c2.plotly_chart(fig2, use_container_width=True)
+        fig2.update_layout(height=330 if layout_mode == "Mobile" else 420)
+        st.plotly_chart(fig2, use_container_width=True)
 
     with tab2:
-        c1, c2 = st.columns(2, gap="small")
-
         by_district_cas = (
             casualty_df.groupby("district")
             .agg(
@@ -315,8 +408,8 @@ elif page == "Statistics":
             y=["killed", "injured", "children"],
             title="Casualties by district"
         )
-        fig.update_layout(height=410)
-        c1.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(height=360 if layout_mode == "Mobile" else 420)
+        st.plotly_chart(fig, use_container_width=True)
 
         by_gov = (
             casualty_df.groupby("governorate")
@@ -334,8 +427,8 @@ elif page == "Statistics":
             y=["killed", "injured", "children"],
             title="Casualties by governorate"
         )
-        fig2.update_layout(height=410)
-        c2.plotly_chart(fig2, use_container_width=True)
+        fig2.update_layout(height=330 if layout_mode == "Mobile" else 420)
+        st.plotly_chart(fig2, use_container_width=True)
 
     with tab3:
         by_type = (
@@ -351,7 +444,7 @@ elif page == "Statistics":
             values="events",
             title="Attack type distribution"
         )
-        fig.update_layout(height=430)
+        fig.update_layout(height=360 if layout_mode == "Mobile" else 430)
         st.plotly_chart(fig, use_container_width=True)
 
 elif page == "Timeline":
@@ -362,7 +455,7 @@ elif page == "Timeline":
 
     with tab1:
         fig = px.bar(daily, x="day", y="events", title="Events per day")
-        fig.update_layout(height=480)
+        fig.update_layout(height=360 if layout_mode == "Mobile" else 500)
         st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
@@ -373,7 +466,7 @@ elif page == "Timeline":
             markers=True,
             title="Casualties per day"
         )
-        fig.update_layout(height=480)
+        fig.update_layout(height=360 if layout_mode == "Mobile" else 500)
         st.plotly_chart(fig, use_container_width=True)
 
 elif page == "Events":
@@ -386,9 +479,10 @@ elif page == "Events":
             .str.contains(search, case=False, na=False)
         ]
 
-    table_component(height=600)
+    table_component(height=450 if layout_mode == "Mobile" else 600)
 
     csv = filtered.to_csv(index=False, encoding="utf-8-sig")
+
     st.download_button(
         "Download filtered dataset",
         csv,
